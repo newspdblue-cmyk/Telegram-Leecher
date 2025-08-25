@@ -209,7 +209,7 @@ async def handle_url(client, message):
 @colab_bot.on_callback_query()
 async def handle_options(client, callback_query):
     global BOT, MSG
-    data = callbackquery.data  # NEW: local alias for readability
+    data = callback_query.data  # NEW: local alias for readability
 
     # NEW: pick destination folder under mirrordir
     if data.startswith("set-dest:"):
@@ -226,7 +226,7 @@ async def handle_options(client, callback_query):
              InlineKeyboardButton("Extract", callback_data="unzip")],
             [InlineKeyboardButton("UnDoubleZip", callback_data="undzip")]
         ])
-        await callbackquery.message.edit_text(
+        await callback_query.message.edit_text(
             text=f"Select Type of {BOT.Mode.mode.capitalize()} You Want",
             reply_markup=keyboard
         )
@@ -235,7 +235,7 @@ async def handle_options(client, callback_query):
     # NEW: create a new folder, then prompt user to send the name
     if data == "new-folder":
         BOT.State.newfolder = True
-        await callbackquery.message.edit_text(
+        await callback_query.message.edit_text(
             "Send a NEW FOLDER NAME to create inside mirrordir by replying to this message."
         )
         return
@@ -252,7 +252,7 @@ async def handle_options(client, callback_query):
             InlineKeyboardButton("Refresh", callback_data="refresh-dest"),
         ])
         buttons.append([InlineKeyboardButton("Use Default (timestamp)", callback_data="set-dest:__DEFAULT__")])
-        await callbackquery.message.edit_text(
+        await callback_query.message.edit_text(
             text="Select Google Drive folder inside mirrordir (or create a new one):",
             reply_markup=InlineKeyboardMarkup(buttons),
         )
