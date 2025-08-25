@@ -100,6 +100,34 @@ async def setPrefix(client, message):
 
         await send_settings(client, message, message.reply_to_message_id, False)
         await message.delete()
+    # NEW: handle new folder name creation
+    elif getattr(BOT.State, "newfolder", False):
+        folder_name = message.text.strip()
+        base = Paths.mirrordir
+        try:
+            os.makedirs(os.path.join(base, folder_name), exist_ok=True)
+        except Exception:
+            pass
+        BOT.State.newfolder = False
+
+        # Re-render folder selector
+        try:
+            dirs = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
+        except Exception:
+            dirs = []
+        buttons = [[InlineKeyboardButton(d, callback_data=f"set-dest:{d}")] for d in dirs]
+        buttons.append([
+            InlineKeyboardButton("Create New Folder", callback_data="new-folder"),
+            InlineKeyboardButton("Refresh", callback_data="refresh-dest"),
+        ])
+        buttons.append([InlineKeyboardButton("Use Default (timestamp)", callback_data="set-dest:__DEFAULT__")])
+
+        await message.reply_text(
+            text="Folder created. Now select destination:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            quote=True
+        )
+        await message.delete()
 
 
 @colab_bot.on_message(filters.create(isLink) & ~filters.photo)
@@ -131,6 +159,31 @@ async def handle_url(client, message):
                 break
 
         BOT.SOURCE = temp_source
+
+        # NEW: If mirroring to Drive, ask for destination folder first
+        if BOT.Mode.mode == "mirror":
+            try:
+                base = Paths.mirrordir
+                if not os.path.exists(base):
+                    os.makedirs(base, exist_ok=True)
+                dirs = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
+            except Exception:
+                dirs = []
+    
+            buttons = [[InlineKeyboardButton(d, callback_data=f"set-dest:{d}")] for d in dirs]
+            buttons.append([
+                InlineKeyboardButton("Create New Folder", callback_data="new-folder"),
+                InlineKeyboardButton("Refresh", callback_data="refresh-dest"),
+            ])
+            buttons.append([InlineKeyboardButton("Use Default (timestamp)", callback_data="set-dest:__DEFAULT__")])
+    
+            await message.reply_text(
+                text="Select Google Drive folder inside mirrordir (or create a new one):",
+                reply_markup=InlineKeyboardMarkup(buttons),
+                quote=True,
+            )
+            return  # Wait for destination selection before type selection
+        
         keyboard = InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("Regular", callback_data="normal")],
@@ -156,7 +209,56 @@ async def handle_url(client, message):
 @colab_bot.on_callback_query()
 async def handle_options(client, callback_query):
     global BOT, MSG
+    data = callbackquery.data  # NEW: local alias for readability
 
+    # NEW: pick destination folder under mirrordir
+    if data.startswith("set-dest:"):
+        dest = data.split(":", 1)[1]
+        if dest == "__DEFAULT__":
+            Paths.selected_mirrordir = None
+        else:
+            Paths.selected_mirrordir = os.path.join(Paths.mirrordir, dest)
+
+        # Now proceed with existing type selection UI
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Regular", callback_data="normal"),
+             InlineKeyboardButton("Compress", callback_data="zip"),
+             InlineKeyboardButton("Extract", callback_data="unzip")],
+            [InlineKeyboardButton("UnDoubleZip", callback_data="undzip")]
+        ])
+        await callbackquery.message.edit_text(
+            text=f"Select Type of {BOT.Mode.mode.capitalize()} You Want",
+            reply_markup=keyboard
+        )
+        return
+
+    # NEW: create a new folder, then prompt user to send the name
+    if data == "new-folder":
+        BOT.State.newfolder = True
+        await callbackquery.message.edit_text(
+            "Send a NEW FOLDER NAME to create inside mirrordir by replying to this message."
+        )
+        return
+
+    # NEW: refresh the folder list
+    if data == "refresh-dest":
+        base = Paths.mirrordir
+        if not os.path.exists(base):
+            os.makedirs(base, exist_ok=True)
+        dirs = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
+        buttons = [[InlineKeyboardButton(d, callback_data=f"set-dest:{d}")] for d in dirs]
+        buttons.append([
+            InlineKeyboardButton("Create New Folder", callback_data="new-folder"),
+            InlineKeyboardButton("Refresh", callback_data="refresh-dest"),
+        ])
+        buttons.append([InlineKeyboardButton("Use Default (timestamp)", callback_data="set-dest:__DEFAULT__")])
+        await callbackquery.message.edit_text(
+            text="Select Google Drive folder inside mirrordir (or create a new one):",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+        return
+    
+    # ... existing branches for normal/zip/unzip/undzip and others remain unchanged ...
     if callback_query.data in ["normal", "zip", "unzip", "undzip"]:
         BOT.Mode.type = callback_query.data
         await callback_query.message.delete()
