@@ -238,8 +238,16 @@ async def Do_Mirror(source, is_ytdl, is_zip, is_unzip, is_dualzip):
         )
         return
 
+    # NEW: honor user-selected destination; else fallback to default mirrordir/timestamp
+    dest_root = Paths.selected_mirrordir if getattr(Paths, "selected_mirrordir", None) else Paths.mirrordir
+
     if not ospath.exists(Paths.mirror_dir):
         makedirs(Paths.mirror_dir)
+
+    # NEW: honor user-selected destination; else fallback to default mirrordir/timestamp
+    dest_root = Paths.selected_mirrordir if getattr(Paths, "selected_mirrordir", None) else Paths.mirrordir
+    if not ospath.exists(dest_root):
+        makedirs(dest_root)
 
     await downloadManager(source, is_ytdl)
 
@@ -247,21 +255,27 @@ async def Do_Mirror(source, is_ytdl, is_zip, is_unzip, is_dualzip):
 
     applyCustomName()
 
-    cdt = datetime.now()
-    cdt_ = cdt.strftime("Uploaded » %Y-%m-%d %H:%M:%S")
-    mirror_dir_ = ospath.join(Paths.mirror_dir, cdt_)
+    if getattr(Paths, "selected_mirrordir", None):
+        mirrordir = dest_root  # Use the chosen folder directly
+    else:
+        cdt = datetime.now()
+        cdt_ = cdt.strftime("Uploaded » %Y-%m-%d %H:%M:%S")
+        mirrordir = ospath.join(dest_root, cdt)
 
     if is_zip:
         await Zip_Handler(Paths.down_path, True, True)
-        shutil.copytree(Paths.temp_zpath, mirror_dir_)
+        shutil.copytree(Paths.temp_zpath, mirrordir)
     elif is_unzip:
         await Unzip_Handler(Paths.down_path, True)
-        shutil.copytree(Paths.temp_unzip_path, mirror_dir_)
+        shutil.copytree(Paths.temp_unzip_path, mirrordir)
     elif is_dualzip:
         await Unzip_Handler(Paths.down_path, True)
         await Zip_Handler(Paths.temp_unzip_path, True, True)
-        shutil.copytree(Paths.temp_zpath, mirror_dir_)
+        shutil.copytree(Paths.temp_zpath, mirrordir)
     else:
-        shutil.copytree(Paths.down_path, mirror_dir_)
+        shutil.copytree(Paths.down_path, mirrordir)
+
+    # NEW: reset selection so next task uses default unless chosen again
+    Paths.selected_mirrordir = None
 
     await SendLogs(False)
