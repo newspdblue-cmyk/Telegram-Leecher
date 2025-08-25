@@ -88,6 +88,10 @@ async def settings(client, message):
 @colab_bot.on_message(filters.reply)
 async def setPrefix(client, message):
     global BOT, SETTING
+
+    # LOG: reply received
+    logging.info(f"REPLY: text='{getattr(message, 'text', None)}', reply_to={getattr(message, 'replytomessageid', None)}")  # NEW
+    
     if BOT.State.prefix:
         BOT.Setting.prefix = message.text
         BOT.State.prefix = False
@@ -102,18 +106,29 @@ async def setPrefix(client, message):
         await message.delete()
     # NEW: handle new folder name creation
     elif getattr(BOT.State, "newfolder", False):
-        folder_name = message.text.strip()
+        folder_name = (message.text or "").strip()
         base = Paths.mirrordir
-        try:
-            os.makedirs(os.path.join(base, folder_name), exist_ok=True)
-        except Exception:
-            pass
+        full = os.path.join(base, folder_name) if folder_name else None
+        logging.info(f"NEWFOLDER: base='{base}', name='{folder_name}', full='{full}'")  # NEW
+        ok = False
+        if folder_name:
+            try:
+                if not os.path.exists(base):
+                    os.makedirs(base, exist_ok=True)
+                    logging.info(f"MKDIR: ensured base='{base}'")  # NEW
+                os.makedirs(full, exist_ok=True)
+                ok = True
+                logging.info(f"MKDIR: created='{full}' (exist_ok=True)")  # NEW
+            except Exception as e:
+                logging.error(f"ERR: mkdir full='{full}': {e}")  # NEW
+
         BOT.State.newfolder = False
 
         # Re-render folder selector
         try:
             dirs = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
         except Exception:
+            logging.error(f"ERR: listing after mkdir base='{base}': {e}")  # NEW
             dirs = []
         buttons = [[InlineKeyboardButton(d, callback_data=f"set-dest:{d}")] for d in dirs]
         buttons.append([
@@ -122,11 +137,14 @@ async def setPrefix(client, message):
         ])
         buttons.append([InlineKeyboardButton("Use Default (timestamp)", callback_data="set-dest:__DEFAULT__")])
 
-        await message.reply_text(
-            text="Folder created. Now select destination:",
-            reply_markup=InlineKeyboardMarkup(buttons),
+        # Give user feedback if creation failed/succeeded
+        status = "created" if ok else "failed"
+        await message.replytext(
+            text=f"Folder {status}: {folder_name or '<empty>'}\nNow select destination:",
+            replymarkup=InlineKeyboardMarkup(buttons),
             quote=True
         )
+        
         await message.delete()
 
 
@@ -211,6 +229,9 @@ async def handle_options(client, callback_query):
     global BOT, MSG
     data = callback_query.data  # NEW: local alias for readability
 
+    # LOG: received callback
+    logging.info(f"CBQ: data='{data}', from={getattr(callback_query, 'from_user', None)}") 
+
     # NEW: pick destination folder under mirrordir
     if data.startswith("set-dest:"):
         dest = data.split(":", 1)[1]
@@ -235,6 +256,7 @@ async def handle_options(client, callback_query):
     # NEW: create a new folder, then prompt user to send the name
     if data == "new-folder":
         BOT.State.newfolder = True
+        logging.info("FLOW: new-folder requested; BOT.State.newfolder=True")  # NEW
         await callback_query.message.edit_text(
             "Send a NEW FOLDER NAME to create inside mirrordir by replying to this message."
         )
@@ -245,7 +267,12 @@ async def handle_options(client, callback_query):
         base = Paths.mirrordir
         if not os.path.exists(base):
             os.makedirs(base, exist_ok=True)
-        dirs = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
+        try:
+            dirs = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
+        except Exception as e:
+            logging.error(f"ERR: listing base='{base}': {e}")  # NEW
+            dirs = []
+        logging.info(f"LIST: base='{base}', count={len(dirs)}")  # NEW
         buttons = [[InlineKeyboardButton(d, callback_data=f"set-dest:{d}")] for d in dirs]
         buttons.append([
             InlineKeyboardButton("Create New Folder", callback_data="new-folder"),
