@@ -40,6 +40,7 @@ class BOT:
         task_going = False
         prefix = False
         suffix = False
+        newfolder = False  # NEW
 
 
 class YTDL:
@@ -85,6 +86,7 @@ class Paths:
     temp_files_dir = f"{WORK_PATH}/leech_temp"
     thumbnail_ytdl = f"{WORK_PATH}/ytdl_thumbnails"
     access_token = "/content/token.pickle"
+    selected_mirrordir = None  # NEW
 
 
 class Messages:
