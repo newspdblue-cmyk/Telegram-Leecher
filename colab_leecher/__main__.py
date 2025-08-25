@@ -147,6 +147,51 @@ async def setPrefix(client, message):
         
         await message.delete()
 
+@colab_bot.on_message(filters.private)
+async def handleNewFolderLoose(client, message):
+    # Only act if waiting for a new folder name and it's plain text (not a command/media)
+    if not getattr(BOT.State, "newfolder", False):
+        return
+    if not getattr(message, "text", None) or (message.text.startswith("/") or message.text.strip() == ""):
+        return
+    logging.info("FALLBACK: capturing folder name from non-reply message")
+    folder_name = message.text.strip()
+    base = Paths.mirrordir
+    full = os.path.join(base, folder_name)
+    ok = False
+    try:
+        if not os.path.exists(base):
+            os.makedirs(base, exist_ok=True)
+            logging.info(f"MKDIR: ensured base='{base}' (fallback)")
+        os.makedirs(full, exist_ok=True)
+        ok = True
+        logging.info(f"MKDIR: created='{full}' (fallback)")
+    except Exception as e:
+        logging.error(f"ERR: mkdir (fallback) full='{full}': {e}")
+
+    BOT.State.newfolder = False
+
+    try:
+        dirs = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
+    except Exception as e:
+        logging.error(f"ERR: listing after mkdir (fallback) base='{base}': {e}")
+        dirs = []
+
+    buttons = [[InlineKeyboardButton(d, callbackdata=f"set-dest:{d}")] for d in dirs]
+    buttons.append([
+        InlineKeyboardButton("Create New Folder", callbackdata="new-folder"),
+        InlineKeyboardButton("Refresh", callbackdata="refresh-dest"),
+    ])
+    buttons.append([InlineKeyboardButton("Use Default (timestamp)", callbackdata="set-dest:__DEFAULT__")])
+
+    status = "created" if ok else "failed"
+    await message.replytext(
+        text=f"Folder {status}: {folder_name}\nNow select destination:",
+        replymarkup=InlineKeyboardMarkup(buttons),
+        quote=True
+    )
+
+
 
 @colab_bot.on_message(filters.create(isLink) & ~filters.photo)
 async def handle_url(client, message):
