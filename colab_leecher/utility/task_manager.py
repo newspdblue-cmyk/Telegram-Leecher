@@ -256,24 +256,24 @@ async def Do_Mirror(source, is_ytdl, is_zip, is_unzip, is_dualzip):
     applyCustomName()
 
     if getattr(Paths, "selected_mirrordir", None):
-        mirrordir = dest_root  # Use the chosen folder directly
+        mirror_dir_ = dest_root  # Use the chosen folder directly
     else:
         cdt = datetime.now()
         cdt_ = cdt.strftime("Uploaded » %Y-%m-%d %H:%M:%S")
-        mirrordir = ospath.join(dest_root, cdt)
+        mirror_dir_ = ospath.join(dest_root, cdt)
 
     if is_zip:
         await Zip_Handler(Paths.down_path, True, True)
-        shutil.copytree(Paths.temp_zpath, mirrordir)
+        shutil.copytree(Paths.temp_zpath, mirror_dir_)
     elif is_unzip:
         await Unzip_Handler(Paths.down_path, True)
-        shutil.copytree(Paths.temp_unzip_path, mirrordir)
+        shutil.copytree(Paths.temp_unzip_path, mirror_dir_)
     elif is_dualzip:
         await Unzip_Handler(Paths.down_path, True)
         await Zip_Handler(Paths.temp_unzip_path, True, True)
-        shutil.copytree(Paths.temp_zpath, mirrordir)
+        shutil.copytree(Paths.temp_zpath, mirror_dir_)
     else:
-        shutil.copytree(Paths.down_path, mirrordir)
+        shutil.copytree(Paths.down_path, mirror_dir_)
 
     # NEW: reset selection so next task uses default unless chosen again
     Paths.selected_mirrordir = None
